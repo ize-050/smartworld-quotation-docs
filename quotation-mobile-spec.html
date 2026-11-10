@@ -269,7 +269,7 @@
  }
  function openQuotation(index){
   state.selected=index;const q=quotes[index];
-  record('GET',`AP Easy /api/v1/ap-easy/TimelineDetails?projectNo=${q.projectNo}&unitNo=${q.unitNo}`,200,{bookingLinkStatus:'not_linked',data:[{key:'quotation',state:'in_progress'},{key:'booking',state:'upcoming'}]});
+  record('GET',`AP Easy /api/v1/ap-easy/TimelineDetails?projectNo=${q.projectNo}&unitNo=${q.unitNo}`,200,{bookingLinkStatus:'not_linked',data:[{key:'quotation',state:'in_progress'},...['booking','contract','loan','inspection','transfer'].map(key=>({key,state:'upcoming',date:null,status:null}))]});
   state.booked=false;state.identity=true;state.page='detail';
  }
  function render(){
@@ -289,8 +289,8 @@
    document.getElementById('qm-extra').innerHTML='<button type="button" class="qm-railbutton" data-qm-action="late">Simulate a late suggestion response</button>';
   }else if(state.page==='detail'){
    const q=quotes[state.selected];
-   info(state.booked?'Booking saved: exact identity matters':'Profile saved → Smart World timeline','Backend selected this quotation automatically. All quotations are kept. Existing active property wins; otherwise use the latest quotation date. No chooser or selection API call.');
-   screen.innerHTML=`${back}<div class="qm-kicker">SMART WORLD · YOUR PURCHASE</div><h3>Your home journey</h3><p>${esc(q.project)} · Unit ${q.unit}</p><div class="qm-card"><span class="qm-chip">${q.quotationNo}</span><div class="qm-price">฿${q.price}</div><p>Synthetic quotation amount</p></div>${button('View quotation details','document',true)}<div style="margin:8px 0"><div class="qm-time ${state.booked?'done':'current'}"><b>1. Quotation</b><small>${state.booked?'Completed · booking saved':'Available · review your offer'}</small></div><div class="qm-time ${state.booked?'current':''}"><b>2. Booking</b><small>${state.booked?'Booking saved':'Upcoming'}</small></div>${state.booked&&state.identity?'<div class="qm-time"><b>Contract</b><small>Upcoming · verified booking timeline</small></div><div class="qm-time"><b>Later stages</b><small>Follow existing project rules</small></div>':''}</div>${state.booked&&!state.identity?'<div class="qm-note warning">Your booking is saved. More journey details will appear when available.</div>':''}<div class="qm-grow"></div><p>Resident access follows the normal membership process.</p>`;
+   info(state.booked?'Booking saved: property steps stay visible':'Profile saved → Smart World timeline','Backend selected this quotation automatically. All quotations are kept. Existing active property wins; otherwise use the latest quotation date. No chooser or selection API call. All existing property steps stay visible.');
+   screen.innerHTML=`${back}<div class="qm-kicker">SMART WORLD · YOUR PURCHASE</div><h3>Your home journey</h3><p>${esc(q.project)} · Unit ${q.unit}</p><div class="qm-card"><span class="qm-chip">${q.quotationNo}</span><div class="qm-price">฿${q.price}</div><p>Synthetic quotation amount</p></div>${button('View quotation details','document',true)}<div style="margin:8px 0"><div class="qm-time ${state.booked?'done':'current'}"><b>1. Quotation</b><small>${state.booked?'Completed · booking saved':'Available · review your offer'}</small></div><div class="qm-time ${state.booked?'current':''}"><b>2. Booking</b><small>${state.booked?'Booking saved':'Upcoming'}</small></div><div class="qm-time"><b>3. Contract</b><small>Upcoming</small></div><div class="qm-time"><b>4. Loan</b><small>Upcoming</small></div><div class="qm-time"><b>5. Inspection</b><small>Upcoming</small></div><div class="qm-time"><b>6. Transfer</b><small>Upcoming</small></div></div><div class="qm-grow"></div><p>Resident access follows the normal membership process.</p>`;
    document.getElementById('qm-extra').innerHTML=`<button type="button" class="qm-railbutton" data-qm-action="booking">Simulate CRM booking saved</button>${state.booked?'<button type="button" class="qm-railbutton" data-qm-action="identity">'+(state.identity?'Simulate missing timeline booking ID':'Simulate verified timeline booking ID')+'</button>':''}`;
   }else if(state.page==='document'){
    const q=quotes[state.selected];
@@ -341,7 +341,7 @@
   }else if(action==='timeline'){state.page='detail';
   }else if(action==='booking'||action==='identity'){
    if(action==='booking'){state.booked=true;record('CRM → KAFKA','quotation-unit / CREATE_BOOKING','simulated',{projectCode:refs[state.selected].projectNo,unitNo:refs[state.selected].unitNo,quotationNo:refs[state.selected].quotationNo,bookingId:'MOCK-B1',contacts:'synthetic matched contact'});}else state.identity=!state.identity;
-   const q=quotes[state.selected];record('GET',`AP Easy /api/v1/ap-easy/TimelineDetails?projectNo=${q.projectNo}&unitNo=${q.unitNo}`,200,{bookingId:'MOCK-B1',bookingLinkStatus:state.identity?'linked':'timeline_identity_unverified',message:state.identity?'Success':'Partial success',laterStagesIncluded:state.identity});
+   const q=quotes[state.selected];record('GET',`AP Easy /api/v1/ap-easy/TimelineDetails?projectNo=${q.projectNo}&unitNo=${q.unitNo}`,200,{bookingId:'MOCK-B1',bookingLinkStatus:state.identity?'linked':'timeline_identity_unverified',message:'Success',laterStagesIncluded:true});
   }else if(action==='explore'){state.page='explore';}
   render();
  });
@@ -391,7 +391,7 @@ Content-Type: application/json
 <li>Call <code>GET /api/v1/ap-easy/QuotationJourneys</code>.</li>
 <li>Check <code>quotationDiscovery.status</code>. For <code>available</code>, use the returned <code>activeQuotation</code>; do not choose or sort documents in mobile.</li>
 <li>Refresh <code>GET /api/v1/users/me/assets</code> so home uses the saved active project/unit and asset cards.</li>
-<li>When <code>activeQuotation</code> is non-null, call <code>TimelineDetails</code> with its <code>projectNo</code> and <code>unitNo</code>. The backend resolves the saved quotation number.</li>
+<li>When <code>activeQuotation</code> is non-null, call <code>TimelineDetails</code> with its <code>projectNo</code> and <code>unitNo</code>. The backend looks up the latest authorized quotation for that project/unit using the authenticated phone. A saved activeQuotation is not required for the timeline request.</li>
 </ol>
 <p>Example: a customer without an active unit has two quotations. Q2 is newer, so both journeys are returned and Q2 is active:</p>
 <pre><code class="language-json">{
@@ -429,7 +429,7 @@ Content-Type: application/json
 X-Token: &lt;customer-token&gt;
 Accept-Language: en
 </code></pre>
-<p><strong>Mobile does not need to send <code>quotationNo</code> or call <code>QuotationSelection</code> in this flow.</strong> The selection endpoint remains for older integrations and explicit context switches. The optional timeline <code>quotationNo</code> is only for an exact document view; normal home uses the saved selection. URL-encode query values.</p>
+<p><strong>Mobile does not need to send <code>quotationNo</code> or call <code>QuotationSelection</code> in this flow.</strong> The selection endpoint remains for older integrations and explicit context switches. The optional timeline <code>quotationNo</code> is only for an exact document view; normal home uses the active project/unit and the backend finds its latest quotation. URL-encode query values.</p>
 <p><code>QuotationDetails</code> remains optional for the full document. Match the exact triple inside <code>data[].units[].quotations[]</code>; it returns all documents, including each document&#39;s original <code>customer</code>.</p>
 <h2 id="overview-section-4">4. Asset fields and customer access</h2>
 <div class="table-scroll"><table>
@@ -516,7 +516,8 @@ Accept-Language: en
 </tr>
 </tbody></table></div>
 <p>An unavailable lookup does not clear stored quotation/asset context. A successful empty lookup clears the active quotation and current quotation snapshot while keeping existing assets and active unit. Repeated discovery is safe and does not create duplicate property assets. Discovery now synchronizes backend state even though its method remains GET; do not prefetch it as a passive suggestion request. Use <code>QuotationProfile</code> on the profile screen.</p>
-<p>Timeline order is <strong>Quotation Step 1 → Booking Step 2 → Existing later stages</strong>. CRM saves a booking and emits <code>quotation-unit / CREATE_BOOKING</code>; notification-service saves the contact mapping and exact booking link. Mobile does not publish Kafka events. Refresh the timeline after booking; later stages appear only after booking identity is confirmed. <code>bookingLinkStatus</code> can be <code>not_linked</code>, <code>pending</code>, <code>timeline_identity_unverified</code> or <code>linked</code>.</p>
+<p>Quotation is added before the existing property timeline. Keep every existing row and its dates, status, state, color and inspection details. For a horizontal project the usual order is <strong>Quotation → Booking → Contract → Loan → Inspection → Transfer</strong>. Vertical projects keep the existing Installment row; cash buyers keep the existing rule that omits Loan. Kafka booking-link metadata does not decide which property rows are visible. When there is no booking data yet, the normal later stages remain Upcoming with null dates/statuses. Existing currentStatus, propertyType and message are preserved when the property journey has started; before it starts, Quotation is current.</p>
+<p>CRM saves a booking and emits <code>quotation-unit / CREATE_BOOKING</code>; notification-service saves the contact mapping and exact booking link. Mobile does not publish Kafka events. <code>bookingLinkStatus</code> describes that relationship (<code>not_linked</code>, <code>pending</code>, <code>timeline_identity_unverified</code> or <code>linked</code>); a pending or unverified relationship must not hide the existing property steps.</p>
 <h2 id="overview-section-6">6. URLs, authentication and acceptance</h2>
 <p>Mobile UAT base: <code>https://uat-api.apdigital.ai/api/v1/crm-ap/ap-easy</code>.</p>
 <div class="table-scroll"><table>
@@ -540,7 +541,7 @@ Accept-Language: en
 <tr>
 <td>GET</td>
 <td><code>/TimelineDetails?projectNo=P2&amp;unitNo=U2</code></td>
-<td>Timeline for the saved active quotation</td>
+<td>Latest authorized quotation timeline for the requested project/unit</td>
 </tr>
 <tr>
 <td>GET</td>
