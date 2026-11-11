@@ -584,13 +584,13 @@ Accept-Language: en
 <p>Older quotation-only records using userType prospect are normalized to owner during the next successful synchronization, including a confirmed empty lookup. Only quotation placeholder records are upgraded; real-unit roles are preserved. A failed lookup performs no migration. New code must be deployed in both services before UAT acceptance; no live database backfill was run.</p>
 <p>Role is per property, not a global customer type. Quotation-only property cards use owner. Existing resident units keep the role from units.currentOccupants: owner stays owner, tenant stays tenant, and occupant stays occupant. Adding a quotation to an existing unit does not overwrite that membership role. For a non-quotation AP Easy active context, the matching saved asset role is retained; the legacy booking-only owner fallback remains when no role is saved.</p>
 <h3>Pure AP Easy IDs — 11 November 2026</h3>
-<p>Pure AP Easy quotation and booking properties use zero ObjectIDs. MongoDB stores the native BSON ObjectID, not an empty string or a newly created resident-unit ID:</p>
+<p>Unit and project IDs are independent. An unmapped quotation/pure Easy property uses zero ObjectIDs. When Smart World already has a saved projectId, preserve and return that real projectId even if unitId is still zero. MongoDB stores native BSON ObjectIDs, not empty strings:</p>
 <pre><code class="language-javascript">{
   unitId: ObjectId(&quot;000000000000000000000000&quot;),
   project: { projectId: ObjectId(&quot;000000000000000000000000&quot;) }
 }
 </code></pre>
-<p>The API returns their hexadecimal strings, consistently in the project list and active context:</p>
+<p>The API returns hexadecimal strings. The following example is the unmapped case, where both stored IDs are zero:</p>
 <pre><code class="language-json">{
   &quot;projectId&quot;: &quot;000000000000000000000000&quot;,
   &quot;projectCode&quot;: &quot;40175&quot;,
@@ -604,7 +604,21 @@ Accept-Language: en
   ]
 }
 </code></pre>
-<p>New pure Easy active-context writes include unitId explicitly and keep both IDs zero. Actual Smart World units keep their real IDs and membership roles. The shared zero ID must never match unrelated properties: use projectCode plus unitNo, with the existing business-key fallback for older records. A matching pure Easy booking does not turn hasUnit true. Quotation-only hasApeasy remains false until a matching booking exists; other properties&#39; bookings cannot set it. No real unit record is created by this convention, and no live database backfill was run.</p>
+<p>New Easy active-context writes include unitId explicitly and preserve the supplied projectId independently. projectActive.projectId comes from activeUnit.project.projectId; never replace a valid saved projectId with zero just because unitId is zero. Actual Smart World units keep their real IDs and membership roles. The shared zero ID must never match unrelated properties: use projectCode plus unitNo, with the existing business-key fallback for older records. A matching pure Easy booking does not turn hasUnit true. Quotation-only hasApeasy remains false until a matching booking exists; other properties&#39; bookings cannot set it. No real unit record is created by this convention, and no live database backfill was run.</p>
+<h3>Mapped project with no linked unit</h3>
+<p>Keep the existing projectActive mapping: <code>ProjectID: au.Project.ProjectID.Hex()</code>. For example, if the project has been mapped after the AP Easy flow:</p>
+<pre><code class="language-json">{
+  &quot;projectId&quot;: &quot;507f1f77bcf86cd799439011&quot;,
+  &quot;projectCode&quot;: &quot;40175&quot;,
+  &quot;unit&quot;: {
+    &quot;unitId&quot;: &quot;000000000000000000000000&quot;,
+    &quot;unitNo&quot;: &quot;A04&quot;,
+    &quot;role&quot;: &quot;owner&quot;,
+    &quot;hasUnit&quot;: false
+  }
+}
+</code></pre>
+<p>The projectId above is a synthetic example of a real stored project ID. A known project does not imply resident unit membership. Keep real project IDs; use zero only when that ID is actually unmapped. Do not clear the saved projectId when unitId is zero.</p>
 </article></section><footer class="footer"><a href="index.html">Documentation home</a> · Standalone HTML · Works offline</footer></main><dialog id="diagram-dialog" aria-label="Expanded workflow diagram"><div class="dialog-bar"><strong>Workflow diagram</strong><button type="button" id="close-dialog">Close ✕</button></div><div class="dialog-content"></div></dialog><script>
 (()=>{const panels=[...document.querySelectorAll('.panel')],tabs=[...document.querySelectorAll('.tabs a')];function activate(id){panels.forEach(p=>p.classList.toggle('active',p.id===id));tabs.forEach(t=>{t.classList.toggle('active',t.dataset.panel===id);if(t.dataset.panel===id)t.setAttribute('aria-current','page');else t.removeAttribute('aria-current')})}function route(){const target=document.getElementById(decodeURIComponent(location.hash.slice(1))),panel=target?.closest('.panel');if(panel)activate(panel.id);else if(!location.hash)activate('overview');if(target&&!target.classList.contains('panel'))setTimeout(()=>target.scrollIntoView({block:'start'}),0)}document.addEventListener('click',e=>{const a=e.target.closest('a[data-panel]');if(a){activate(a.dataset.panel);if(a.closest('.tabs'))window.scrollTo({top:0,behavior:'smooth'})}const b=e.target.closest('[data-expand]');if(b){const source=document.querySelector('#'+b.dataset.expand+' svg'),content=document.querySelector('.dialog-content');content.replaceChildren(source.cloneNode(true));if(!source.closest('.sequence'))content.firstChild.classList.add('graph-svg');document.getElementById('diagram-dialog').showModal();document.body.classList.add('modal-open')}});const d=document.getElementById('diagram-dialog');d.addEventListener('close',()=>document.body.classList.remove('modal-open'));document.getElementById('close-dialog').onclick=()=>d.close();document.getElementById('print').onclick=()=>window.print();window.addEventListener('hashchange',route);route()})();
 </script></body></html>
